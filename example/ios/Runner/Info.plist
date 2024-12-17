@@ -50,5 +50,11 @@
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
 	</dict>
+	<key>NSFileProviderPresenceUsageDescription</key>
+<string>Access SMB shares</string>
+<key>UIFileSharingEnabled</key>
+<true/>
+<key>LSSupportsOpeningDocumentsInPlace</key>
+<true/>
 </dict>
 </plist>

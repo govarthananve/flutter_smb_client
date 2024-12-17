@@ -15,23 +15,74 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   String _status = 'Not connected';
-  List<Map<String, dynamic>> _files = [];
+  List<Map<String, dynamic>> _items = [];
+  String _currentPath = '';
 
   Future<void> _connect() async {
-    final connected = await FlutterSmbClient.connect(
-      host: '192.168.1.100',
-      username: 'username',
-      password: 'password',
-    );
-    setState(() {
-      _status = connected ? 'Connected' : 'Connection failed';
-    });
+    try {
+      setState(() {
+        _status = 'Connecting...';
+      });
+
+      // You can use either format:
+      // final host = 'smb://192.168.0.1';  // or
+      final host = '192.168.0.1';
+
+      final connected = await FlutterSmbClient.connect(
+          host: host, username: 'Llypk', password: 'Llypk@123', port: 445
+          // port is optional, will use default SMB port (445) if not specified
+          );
+
+      setState(() {
+        print('Connection status: $connected');
+        _status = connected ? 'Connected' : 'Connection failed';
+      });
+
+      if (connected) {
+        await _listDrives();
+      }
+    } on SMBException catch (e) {
+      print('SMB error: ${e.code} - ${e.message}');
+      setState(() {
+        _status = 'Connection error: ${e.message}';
+      });
+    } catch (e) {
+      print('Unexpected error: $e');
+      setState(() {
+        _status = 'Unexpected error: $e';
+      });
+    }
   }
 
-  Future<void> _listFiles() async {
-    final files = await FlutterSmbClient.listFiles('/shared/folder');
+  Future<void> _listDrives() async {
+    try {
+      setState(() {
+        _status = 'Listing drives...';
+      });
+
+      final drives = await FlutterSmbClient.listDrives();
+      print('Drives response: ${drives.map((d) => d['name']).toList()}');
+
+      setState(() {
+        _items = drives;
+        _currentPath = '';
+        _status = drives.isEmpty ? 'No drives found' : 'Connected';
+      });
+    } catch (e) {
+      print('Error listing drives: $e');
+      setState(() {
+        _status = 'Error listing drives: $e';
+        _items = [];
+      });
+    }
+  }
+
+  Future<void> _listFiles(String path) async {
+    final files = await FlutterSmbClient.listFiles(path);
     setState(() {
-      _files = files;
+      _items = files;
+      _currentPath = path;
+      print("Files in $path: $_items");
     });
   }
 
@@ -39,26 +90,56 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       home: Scaffold(
-        appBar: AppBar(title: const Text('SMB Client Example')),
+        appBar: AppBar(
+          title: const Text('SMB Client Example'),
+          leading: _currentPath.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: _listDrives,
+                )
+              : null,
+        ),
         body: Column(
           children: [
-            Text('Status: $_status'),
-            ElevatedButton(
-              onPressed: _connect,
-              child: const Text('Connect'),
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Text('Status: $_status'),
             ),
-            ElevatedButton(
-              onPressed: _listFiles,
-              child: const Text('List Files'),
-            ),
+            if (_status != 'Connected')
+              ElevatedButton(
+                onPressed: _connect,
+                child: const Text('Connect'),
+              ),
             Expanded(
               child: ListView.builder(
-                itemCount: _files.length,
+                itemCount: _items.length,
                 itemBuilder: (context, index) {
-                  final file = _files[index];
+                  final item = _items[index];
+                  final bool isDirectory = item['isDirectory'] ?? false;
+                  final bool isDrive = item['isDrive'] ?? false;
+
                   return ListTile(
-                    title: Text(file['name'] ?? ''),
-                    subtitle: Text(file['size']?.toString() ?? ''),
+                    leading: Icon(
+                      isDrive
+                          ? Icons.storage
+                          : isDirectory
+                              ? Icons.folder
+                              : Icons.insert_drive_file,
+                      color: isDrive
+                          ? Colors.grey
+                          : isDirectory
+                              ? Colors.orange
+                              : Colors.blue,
+                    ),
+                    title: Text(item['name'] ?? ''),
+                    subtitle: !isDirectory && !isDrive
+                        ? Text('Size: ${item['size'] ?? 0} bytes')
+                        : null,
+                    onTap: isDirectory || isDrive
+                        ? () => _listFiles(isDrive
+                            ? '/${item['name']}'
+                            : '$_currentPath/${item['name']}')
+                        : null,
                   );
                 },
               ),

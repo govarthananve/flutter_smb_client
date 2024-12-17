@@ -15,6 +15,12 @@ import io.flutter.plugin.common.MethodChannel.Result
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import com.hierynomus.mssmb2.SMB2CreateDisposition
+import com.hierynomus.mssmb2.SMB2ShareAccess
+import com.hierynomus.mserref.AccessMask
+import java.util.HashSet
+import com.hierynomus.protocol.transport.TransportException
+import java.io.IOException
 
 class FlutterSmbClientPlugin: FlutterPlugin, MethodCallHandler {
   private lateinit var channel : MethodChannel
@@ -57,8 +63,8 @@ class FlutterSmbClientPlugin: FlutterPlugin, MethodCallHandler {
           val fileList = files?.map {
             mapOf(
               "name" to it.fileName,
-              "size" to it.fileAttributes.size,
-              "isDirectory" to it.fileAttributes.isDirectory
+              "size" to it.fileAttributes?.allocationSize ?: 0,
+              "isDirectory" to (it.fileAttributes?.isDirectory ?: false)
             )
           }
           result.success(fileList)
@@ -72,7 +78,20 @@ class FlutterSmbClientPlugin: FlutterPlugin, MethodCallHandler {
           val remotePath = call.argument<String>("remotePath")!!
           val localPath = call.argument<String>("localPath")!!
           
-          val file = share?.openFile(remotePath, setOf())
+          val accessMask = HashSet<AccessMask>()
+          accessMask.add(AccessMask.GENERIC_READ)
+          
+          val shareAccess = HashSet<SMB2ShareAccess>()
+          shareAccess.add(SMB2ShareAccess.FILE_SHARE_READ)
+          
+          val file = share?.openFile(
+            remotePath,
+            accessMask,
+            shareAccess,
+            SMB2CreateDisposition.FILE_OPEN,
+            null
+          )
+          
           val outputStream = FileOutputStream(File(localPath))
           file?.inputStream?.copyTo(outputStream)
           
@@ -90,8 +109,20 @@ class FlutterSmbClientPlugin: FlutterPlugin, MethodCallHandler {
           val localPath = call.argument<String>("localPath")!!
           val remotePath = call.argument<String>("remotePath")!!
           
+          val accessMask = HashSet<AccessMask>()
+          accessMask.add(AccessMask.GENERIC_WRITE)
+          
+          val shareAccess = HashSet<SMB2ShareAccess>()
+          shareAccess.add(SMB2ShareAccess.FILE_SHARE_WRITE)
+          
           val inputStream = FileInputStream(File(localPath))
-          val file = share?.openFile(remotePath, setOf())
+          val file = share?.openFile(
+            remotePath,
+            accessMask,
+            shareAccess,
+            SMB2CreateDisposition.FILE_OVERWRITE_IF,
+            null
+          )
           
           inputStream.copyTo(file?.outputStream!!)
           
