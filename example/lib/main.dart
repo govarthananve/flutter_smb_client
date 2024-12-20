@@ -24,12 +24,10 @@ class _MyAppState extends State<MyApp> {
         _status = 'Connecting...';
       });
 
-      // You can use either format:
-      // final host = 'smb://192.168.0.1';  // or
-      final host = '192.168.0.1';
+      final host = '';
 
       final connected = await FlutterSmbClient.connect(
-          host: host, username: 'Llypk', password: 'Llypk@123', port: 445
+          host: host, username: '', password: '', port: 445
           // port is optional, will use default SMB port (445) if not specified
           );
 
